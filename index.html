@@ -67,6 +67,9 @@ body{display:flex;flex-direction:column}
 .tl-event-check{width:28px;height:28px;border-radius:50%;border:2px solid var(--pink-light);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:.2s}
 .tl-event-check.done{background:var(--pink);border-color:var(--pink)}
 .tl-event-check.done::after{content:'✓';color:#fff;font-size:14px;font-weight:700}
+.tl-event-name.done-text{text-decoration:line-through;color:var(--text-sub)}
+.tl-section-label.done-label{color:#aaa}
+.tl-section-label.done-label::before,.tl-section-label.done-label::after{background:#e0e0e0}
 /* Carryover styling */
 .tl-row.carry .tl-dot{background:var(--carry-light)}
 .tl-row.carry .tl-line{background:var(--carry-light)}
@@ -381,7 +384,11 @@ function renderTimeline() {
     .sort((a,b) => (a.date||'').localeCompare(b.date||''));
 
   const tasks = state.tasks
-    .filter(t => t.type==='task' && t.date===ds)
+    .filter(t => t.type==='task' && !t.done && t.date===ds)
+    .sort((a,b) => a.name.localeCompare(b.name));
+
+  const doneTasks = state.tasks
+    .filter(t => t.type==='task' && t.done && (t.date===ds || (t.doneAt && t.doneAt.startsWith(ds))))
     .sort((a,b) => a.name.localeCompare(b.name));
 
   const events = state.tasks
@@ -392,7 +399,7 @@ function renderTimeline() {
       return (a.start||'').localeCompare(b.start||'');
     });
 
-  if (!carryover.length && !tasks.length && !events.length) {
+  if (!carryover.length && !tasks.length && !events.length && !doneTasks.length) {
     body.innerHTML = '<div class="tl-empty">予定はありません</div>';
     return;
   }
@@ -419,7 +426,7 @@ function renderTimeline() {
   if (events.length) {
     html += '<div class="tl-section-label event-label">予定</div>';
     events.forEach((ev, i) => {
-      const isLast = i===events.length-1;
+      const isLast = i===events.length-1 && !doneTasks.length;
       let tc = '', timeInfo = '';
       if (ev.allDay) {
         timeInfo = '終日';
@@ -428,6 +435,14 @@ function renderTimeline() {
         timeInfo = ev.start && ev.end ? `${fmtTime(ev.start)}〜${fmtTime(ev.end)} ${calcDuration(ev.start,ev.end)}` : '';
       }
       html += buildRow(ev, isLast, { carry: false, showCheck: false, timeCol: tc, timeInfo, subLabel: null });
+    });
+  }
+
+  if (doneTasks.length) {
+    html += '<div class="tl-section-label done-label">完了タスク</div>';
+    doneTasks.forEach((ev, i) => {
+      const isLast = i===doneTasks.length-1;
+      html += buildRow(ev, isLast, { carry: false, showCheck: true, timeCol: '', timeInfo: '', subLabel: null });
     });
   }
 
@@ -452,7 +467,7 @@ function buildRow(ev, isLast, opts) {
       <div class="tl-event-card" onclick="editTask('${ev.id}')">
         <div class="tl-event-info">
           ${timeDisplay ? `<div class="tl-event-time">${timeDisplay}</div>` : ''}
-          <div class="tl-event-name">${esc(ev.name)}</div>
+          <div class="tl-event-name${ev.done?' done-text':''}">${esc(ev.name)}</div>
         </div>
         ${checkHtml}
       </div>
