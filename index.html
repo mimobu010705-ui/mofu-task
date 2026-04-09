@@ -774,7 +774,9 @@ function openAddModal() {
   document.getElementById('m-time-fields').style.display='';
   document.getElementById('m-edit-id').value='';
   const currentScreen = document.querySelector('.screen.active');
-  const defaultType = currentScreen && currentScreen.id === 'screen-later' ? 'later' : 'task';
+  const isLater = currentScreen && currentScreen.id === 'screen-later';
+  const defaultType = isLater ? 'later' : 'task';
+  document.querySelector('.modal-tabs').style.display = isLater ? 'none' : '';
   setModalType(defaultType);
   document.getElementById('modal-overlay').classList.add('show');
 }
@@ -786,6 +788,7 @@ function editTask(id) {
   document.getElementById('modal-title').textContent='編集';
   document.getElementById('modal-save').textContent='保存する';
   document.getElementById('modal-delete').style.display='block';
+  document.querySelector('.modal-tabs').style.display='';
   document.getElementById('m-name').value=t.name;
   document.getElementById('m-edit-id').value=id;
   setModalType(t.type);
