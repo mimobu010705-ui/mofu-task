@@ -91,6 +91,30 @@ body{display:flex;flex-direction:column}
 .later-card.completed{opacity:.5}
 .later-card.completed .later-card-name{text-decoration:line-through}
 
+/* ===== CALENDAR ===== */
+.cal-header{padding:16px 20px 0;display:flex;align-items:center;justify-content:space-between}
+.cal-title{font-size:22px;font-weight:800;color:var(--text)}
+.cal-title span{color:var(--pink)}
+.cal-nav{display:flex;gap:4px}
+.cal-nav button{width:36px;height:36px;border-radius:50%;border:none;background:var(--pink-bg);color:var(--pink);font-size:18px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center}
+.cal-nav button:active{background:var(--pink-light)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);padding:12px 12px 0;gap:0}
+.cal-day-name{text-align:center;font-size:11px;font-weight:700;color:var(--text-sub);padding:8px 0}
+.cal-day-name:nth-child(6){color:var(--pink)}
+.cal-day-name:nth-child(7){color:var(--pink)}
+.cal-cell{min-height:68px;padding:2px;border-top:1px solid #f0f0f0;cursor:pointer;position:relative}
+.cal-cell:active{background:var(--pink-bg)}
+.cal-cell.other-month .cal-cell-num{color:#ccc}
+.cal-cell.today .cal-cell-num{background:var(--pink);color:#fff;border-radius:50%;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center}
+.cal-cell.today{background:var(--pink-bg)}
+.cal-cell-num{display:flex;justify-content:center;font-size:13px;font-weight:600;padding:2px 0;line-height:1}
+.cal-events{display:flex;flex-direction:column;gap:1px;margin-top:2px;overflow:hidden}
+.cal-ev{font-size:9px;font-weight:600;padding:1px 3px;border-radius:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3}
+.cal-ev.ev-timed{background:var(--pink-bg);color:var(--pink)}
+.cal-ev.ev-allday{background:var(--pink);color:#fff}
+.cal-more{font-size:9px;color:var(--text-sub);text-align:center;padding-top:1px}
+.cal-body{flex:1;overflow-y:auto;padding-bottom:100px;-webkit-overflow-scrolling:touch}
+
 /* ===== DONE SCREEN ===== */
 .done-header{padding:16px 20px 0}
 .done-hero{text-align:center;padding:20px 0 8px}
@@ -181,6 +205,20 @@ body{display:flex;flex-direction:column}
   <div class="tl-body" id="tl-body"></div>
 </div>
 
+<!-- CALENDAR -->
+<div class="screen" id="screen-calendar">
+  <div class="cal-header">
+    <div class="cal-title" id="cal-title"></div>
+    <div class="cal-nav">
+      <button onclick="moveMonth(-1)" type="button">‹</button>
+      <button onclick="moveMonth(1)" type="button">›</button>
+    </div>
+  </div>
+  <div class="cal-body">
+    <div class="cal-grid" id="cal-grid"></div>
+  </div>
+</div>
+
 <!-- LATER -->
 <div class="screen" id="screen-later">
   <div class="later-header">あとで</div>
@@ -245,6 +283,10 @@ body{display:flex;flex-direction:column}
   <button class="nav-item" data-screen="later" onclick="switchScreen('later')" type="button">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 14l2 2 4-4"/></svg>
     <span>あとで</span>
+  </button>
+  <button class="nav-item" data-screen="calendar" onclick="switchScreen('calendar')" type="button">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
+    <span>カレンダー</span>
   </button>
   <button class="nav-item active" data-screen="timeline" onclick="switchScreen('timeline')" type="button">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
@@ -365,6 +407,7 @@ function switchScreen(name) {
   document.getElementById('screen-'+name).classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.screen===name));
   if (name==='timeline') renderTimeline();
+  if (name==='calendar') renderCalendar();
   if (name==='later') renderLater();
   if (name==='done') renderDone();
 }
@@ -631,6 +674,87 @@ function calcStreak() {
   return streak;
 }
 
+/* ===== CALENDAR ===== */
+let calYear, calMonth;
+function initCalendar() {
+  const now = new Date();
+  calYear = now.getFullYear();
+  calMonth = now.getMonth();
+}
+function moveMonth(dir) {
+  calMonth += dir;
+  if (calMonth < 0) { calMonth = 11; calYear--; }
+  if (calMonth > 11) { calMonth = 0; calYear++; }
+  renderCalendar();
+}
+function renderCalendar() {
+  const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  document.getElementById('cal-title').innerHTML = `${calYear}年 <span>${MONTH_NAMES[calMonth]}</span>`;
+
+  const eventMap = {};
+  state.tasks.filter(t => t.type === 'event' && t.date).forEach(t => {
+    if (!eventMap[t.date]) eventMap[t.date] = [];
+    eventMap[t.date].push(t);
+  });
+
+  const today = todayStr();
+  const firstDay = new Date(calYear, calMonth, 1);
+  let startDow = firstDay.getDay();
+  if (startDow === 0) startDow = 7;
+  const startDate = new Date(firstDay);
+  startDate.setDate(startDate.getDate() - (startDow - 1));
+
+  const lastDay = new Date(calYear, calMonth + 1, 0);
+  let endDow = lastDay.getDay();
+  if (endDow === 0) endDow = 7;
+  const endDate = new Date(lastDay);
+  endDate.setDate(endDate.getDate() + (7 - endDow));
+
+  let html = ['月','火','水','木','金','土','日'].map(d => `<div class="cal-day-name">${d}</div>`).join('');
+
+  const cur = new Date(startDate);
+  while (cur <= endDate) {
+    const ds = dateStr(cur);
+    const isOther = cur.getMonth() !== calMonth;
+    const isToday = ds === today;
+    let cls = 'cal-cell';
+    if (isOther) cls += ' other-month';
+    if (isToday) cls += ' today';
+
+    const dayEvents = eventMap[ds] || [];
+    dayEvents.sort((a, b) => {
+      if (a.allDay && !b.allDay) return -1;
+      if (!a.allDay && b.allDay) return 1;
+      return (a.start || '').localeCompare(b.start || '');
+    });
+
+    let evHtml = '';
+    const maxShow = 2;
+    dayEvents.slice(0, maxShow).forEach(ev => {
+      const evCls = ev.allDay ? 'ev-allday' : 'ev-timed';
+      const timePrefix = (!ev.allDay && ev.start) ? ev.start.slice(0,5) + ' ' : '';
+      evHtml += `<div class="cal-ev ${evCls}">${timePrefix}${esc(ev.name)}</div>`;
+    });
+    if (dayEvents.length > maxShow) {
+      evHtml += `<div class="cal-more">+${dayEvents.length - maxShow}</div>`;
+    }
+
+    html += `<div class="${cls}" onclick="calTapDay('${ds}')">
+      <div class="cal-cell-num">${cur.getDate()}</div>
+      <div class="cal-events">${evHtml}</div>
+    </div>`;
+    cur.setDate(cur.getDate() + 1);
+  }
+
+  document.getElementById('cal-grid').innerHTML = html;
+}
+
+function calTapDay(ds) {
+  state.selectedDate = parseDate(ds);
+  state.weekStart = getMonday(state.selectedDate);
+  switchScreen('timeline');
+}
+
 /* ===== MODAL ===== */
 function toggleAllDay() {
   document.getElementById('m-time-fields').style.display = document.getElementById('m-allday').checked ? 'none' : '';
@@ -766,7 +890,7 @@ function clearAllData() {
 }
 
 /* ===== INIT ===== */
-load(); initWeek(); renderTimeline();
+load(); initWeek(); initCalendar(); renderTimeline();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
 </body>
