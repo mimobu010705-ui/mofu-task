@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#ffffff">
+<title>mofu task</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.svg">
+<link rel="icon" href="icon-192.svg" type="image/svg+xml">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --pink:#E8887A;--pink-light:#F5C4BC;--pink-bg:#FFF5F3;--pink-pale:#FAEAE7;
+  --carry:#C4A56B;--carry-light:#E8D9B8;--carry-bg:#FBF5EA;
+  --text:#2D2D2D;--text-sub:#888;--bg:#FAFAFA;--card:#fff;
+  --radius:16px;--nav-h:72px;
+  --safe-top:env(safe-area-inset-top,20px);
+  --safe-bottom:env(safe-area-inset-bottom,0px);
+}
+html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;background:var(--bg);color:var(--text);overflow:hidden}
+body{display:flex;flex-direction:column}
+
+.screen{display:none;flex:1;flex-direction:column;overflow:hidden;padding-top:var(--safe-top)}
+.screen.active{display:flex}
+
+/* ===== TIMELINE ===== */
+.tl-header{padding:16px 20px 0}
+.tl-date-row{display:flex;align-items:baseline;gap:8px;margin-bottom:12px}
+.tl-year{font-size:13px;color:var(--pink);font-weight:700}
+.tl-date-main{font-size:26px;font-weight:800;color:var(--pink)}
+.tl-date-arrow{color:var(--pink);font-size:18px;cursor:pointer}
+
+.tl-week{display:flex;gap:4px;margin-bottom:12px}
+.tl-week-day{flex:1;text-align:center;font-size:11px;color:var(--text-sub)}
+.tl-week-num{flex:1;text-align:center}
+.tl-week-num span{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;font-size:14px;font-weight:600;border-radius:50%;cursor:pointer;color:var(--text)}
+.tl-week-num span.today{background:var(--text);color:#fff}
+.tl-week-num span.selected{border:2px solid var(--pink);color:var(--pink)}
+.tl-week-num span.today.selected{background:var(--pink);color:#fff;border:none}
+
+.tl-body{flex:1;overflow-y:auto;padding:0 20px 100px;-webkit-overflow-scrolling:touch}
+.tl-empty{text-align:center;padding:60px 20px;color:var(--text-sub);font-size:14px}
+
+.tl-section-label{font-size:12px;font-weight:700;margin:12px 0 8px;display:flex;align-items:center;gap:6px}
+.tl-section-label::before,.tl-section-label::after{content:'';flex:1;height:1px}
+.tl-section-label.carry-label{color:var(--carry)}
+.tl-section-label.carry-label::before,.tl-section-label.carry-label::after{background:var(--carry-light)}
+.tl-section-label.task-label{color:var(--pink)}
+.tl-section-label.task-label::before,.tl-section-label.task-label::after{background:var(--pink-light)}
+.tl-section-label.event-label{color:var(--text-sub)}
+.tl-section-label.event-label::before,.tl-section-label.event-label::after{background:#e0e0e0}
+
+.tl-row{display:flex;align-items:flex-start;min-height:60px;position:relative}
+.tl-time-col{width:48px;flex-shrink:0;font-size:11px;color:var(--text-sub);padding-top:2px;text-align:right;padding-right:12px}
+.tl-line-col{width:24px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;position:relative}
+.tl-dot{width:10px;height:10px;border-radius:50%;background:var(--pink-light);flex-shrink:0;z-index:1}
+.tl-line{width:3px;flex:1;background:var(--pink-light);min-height:20px}
+.tl-event-col{flex:1;padding:0 0 20px 8px}
+
+.tl-event-card{background:var(--card);border-radius:var(--radius);padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.04);display:flex;align-items:center;gap:12px}
+.tl-event-info{flex:1;min-width:0}
+.tl-event-time{font-size:11px;color:var(--text-sub)}
+.tl-event-name{font-size:14px;font-weight:700;margin-top:2px}
+.tl-event-check{width:28px;height:28px;border-radius:50%;border:2px solid var(--pink-light);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:.2s}
+.tl-event-check.done{background:var(--pink);border-color:var(--pink)}
+.tl-event-check.done::after{content:'✓';color:#fff;font-size:14px;font-weight:700}
+/* Carryover styling */
+.tl-row.carry .tl-dot{background:var(--carry-light)}
+.tl-row.carry .tl-line{background:var(--carry-light)}
+.tl-row.carry .tl-event-card{border-left:3px solid var(--carry)}
+.tl-row.carry .tl-event-check{border-color:var(--carry-light)}
+.tl-row.carry .tl-event-check.done{background:var(--carry);border-color:var(--carry)}
+.carry-tag{font-size:10px;color:var(--carry);font-weight:700;margin-left:4px}
+
+/* ===== LATER ===== */
+.later-header{padding:16px 20px 12px;font-size:28px;font-weight:800}
+.later-body{flex:1;overflow-y:auto;padding:0 20px 100px;-webkit-overflow-scrolling:touch}
+.later-section-title{font-size:13px;color:var(--text-sub);margin:20px 0 10px}
+
+.later-card{background:var(--card);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:12px;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+.later-card-info{flex:1;min-width:0}
+.later-card-est{font-size:11px;color:var(--text-sub)}
+.later-card-name{font-size:14px;font-weight:700;margin-top:1px;line-height:1.4}
+.later-card-add{width:28px;height:28px;border-radius:50%;border:2px solid var(--pink-light);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--pink);font-size:16px;font-weight:700;flex-shrink:0}
+.later-card.completed{opacity:.5}
+.later-card.completed .later-card-name{text-decoration:line-through}
+
+/* ===== DONE SCREEN ===== */
+.done-header{padding:16px 20px 0}
+.done-hero{text-align:center;padding:24px 0 20px}
+.done-hero-count{font-size:56px;font-weight:900;color:var(--pink);line-height:1}
+.done-hero-label{font-size:13px;color:var(--text-sub);margin-top:4px}
+.done-hero-msg{font-size:18px;font-weight:800;margin-top:12px;color:var(--text)}
+.done-streak{display:inline-flex;align-items:center;gap:6px;background:var(--pink-bg);color:var(--pink);font-size:13px;font-weight:700;padding:6px 14px;border-radius:20px;margin-top:10px}
+.done-body{flex:1;overflow-y:auto;padding:0 20px 100px;-webkit-overflow-scrolling:touch}
+.done-date-group{margin-bottom:20px}
+.done-date-label{font-size:12px;font-weight:700;color:var(--text-sub);margin-bottom:8px;padding-left:4px}
+.done-item{background:var(--card);border-radius:12px;padding:12px 16px;margin-bottom:6px;display:flex;align-items:center;gap:10px;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+.done-item-check{width:22px;height:22px;border-radius:50%;background:var(--pink);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.done-item-check::after{content:'✓';color:#fff;font-size:11px;font-weight:700}
+.done-item-name{font-size:14px;font-weight:600;flex:1;min-width:0}
+.done-item-type{font-size:10px;color:var(--text-sub);background:var(--bg);padding:2px 8px;border-radius:6px;flex-shrink:0}
+.done-empty{text-align:center;padding:40px 20px;color:var(--text-sub);font-size:14px}
+
+/* ===== SETTINGS ===== */
+.settings-header{padding:16px 20px 12px;font-size:28px;font-weight:800}
+.settings-body{flex:1;overflow-y:auto;padding:0 20px 100px}
+.settings-group{background:var(--card);border-radius:var(--radius);overflow:hidden;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+.settings-item{padding:14px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #f0f0f0;cursor:pointer}
+.settings-item:last-child{border:none}
+.settings-item-label{font-size:14px;font-weight:600}
+.settings-item-value{font-size:13px;color:var(--text-sub)}
+.settings-danger{color:#E85050}
+
+/* ===== BOTTOM NAV ===== */
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;height:calc(var(--nav-h) + var(--safe-bottom));background:#fff;border-top:1px solid #eee;display:flex;align-items:flex-start;padding-top:8px;padding-bottom:var(--safe-bottom);z-index:100}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;color:var(--text-sub);font-size:10px;transition:.2s;background:none;border:none;font-family:inherit}
+.nav-item.active{color:var(--pink)}
+.nav-item svg{width:24px;height:24px}
+.nav-fab{position:fixed;bottom:calc(var(--nav-h) + var(--safe-bottom) - 20px);right:20px;width:56px;height:56px;border-radius:50%;background:var(--pink);color:#fff;display:flex;align-items:center;justify-content:center;font-size:28px;box-shadow:0 4px 16px rgba(232,136,122,.4);cursor:pointer;z-index:101;border:none;transition:.2s}
+.nav-fab:active{transform:scale(.92)}
+
+/* ===== MODAL ===== */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:200;display:none;align-items:flex-end;justify-content:center}
+.modal-overlay.show{display:flex}
+.modal{background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:480px;max-height:85vh;padding:20px 20px calc(20px + var(--safe-bottom));overflow-y:auto;animation:slideUp .3s ease}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.modal-handle{width:40px;height:4px;border-radius:2px;background:#ddd;margin:0 auto 16px}
+.modal h3{font-size:18px;font-weight:800;margin-bottom:16px}
+.modal-field{margin-bottom:14px}
+.modal-field label{display:block;font-size:12px;color:var(--text-sub);margin-bottom:4px;font-weight:600}
+.modal-field input,.modal-field select,.modal-field textarea{width:100%;padding:10px 14px;border:1.5px solid #e0e0e0;border-radius:12px;font-size:15px;font-family:inherit;outline:none;transition:.2s;background:#fff}
+.modal-field input:focus,.modal-field select:focus,.modal-field textarea:focus{border-color:var(--pink)}
+.modal-row{display:flex;gap:10px}
+.modal-row .modal-field{flex:1}
+.modal-tabs{display:flex;gap:8px;margin-bottom:16px}
+.modal-tab{flex:1;padding:10px;border-radius:12px;border:1.5px solid #e0e0e0;text-align:center;font-size:13px;font-weight:600;cursor:pointer;transition:.2s;background:#fff;font-family:inherit}
+.modal-tab.active{background:var(--pink);color:#fff;border-color:var(--pink)}
+.modal-btn{width:100%;padding:14px;border:none;border-radius:14px;background:var(--pink);color:#fff;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:8px;transition:.2s}
+.modal-btn:active{opacity:.8}
+.toggle-row{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.toggle-label{font-size:13px;font-weight:600;color:var(--text)}
+.toggle-switch{position:relative;width:48px;height:28px;cursor:pointer}
+.toggle-switch input{opacity:0;width:0;height:0}
+.toggle-track{position:absolute;inset:0;background:#ddd;border-radius:14px;transition:.25s}
+.toggle-track::after{content:'';position:absolute;top:3px;left:3px;width:22px;height:22px;background:#fff;border-radius:50%;transition:.25s;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.toggle-switch input:checked+.toggle-track{background:var(--pink)}
+.toggle-switch input:checked+.toggle-track::after{left:23px}
+.delete-btn{background:none;border:none;color:#E85050;font-size:13px;cursor:pointer;padding:8px 0;font-family:inherit;font-weight:600;margin-top:4px}
+</style>
+</head>
+<body>
+
+<!-- TIMELINE -->
+<div class="screen active" id="screen-timeline">
+  <div class="tl-header">
+    <div class="tl-date-row">
+      <span class="tl-year" id="tl-year"></span>
+      <span class="tl-date-main" id="tl-date-main"></span>
+      <span class="tl-date-arrow" onclick="moveWeek(1)">›</span>
+    </div>
+    <div class="tl-week" id="tl-week-days"></div>
+    <div class="tl-week" id="tl-week-nums"></div>
+  </div>
+  <div class="tl-body" id="tl-body"></div>
+</div>
+
+<!-- LATER -->
+<div class="screen" id="screen-later">
+  <div class="later-header">あとで</div>
+  <div class="later-body" id="later-body"></div>
+</div>
+
+<!-- DONE -->
+<div class="screen" id="screen-done">
+  <div class="done-header">
+    <div class="done-hero">
+      <div class="done-hero-count" id="done-today-count">0</div>
+      <div class="done-hero-label">今日できたこと</div>
+      <div class="done-hero-msg" id="done-msg"></div>
+      <div class="done-streak" id="done-streak" style="display:none"></div>
+    </div>
+  </div>
+  <div class="done-body" id="done-body"></div>
+</div>
+
+<!-- SETTINGS -->
+<div class="screen" id="screen-settings">
+  <div class="settings-header">設定</div>
+  <div class="settings-body">
+    <div class="settings-group">
+      <div class="settings-item" onclick="exportData()">
+        <span class="settings-item-label">データをエクスポート</span>
+        <span class="settings-item-value">›</span>
+      </div>
+      <div class="settings-item" onclick="importData()">
+        <span class="settings-item-label">データをインポート</span>
+        <span class="settings-item-value">›</span>
+      </div>
+    </div>
+    <div class="settings-group">
+      <div class="settings-item" onclick="clearAllData()">
+        <span class="settings-item-label settings-danger">全データ削除</span>
+        <span class="settings-item-value">›</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- NAV -->
+<nav class="bottom-nav">
+  <button class="nav-item" data-screen="later" onclick="switchScreen('later')" type="button">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 14l2 2 4-4"/></svg>
+    <span>あとで</span>
+  </button>
+  <button class="nav-item active" data-screen="timeline" onclick="switchScreen('timeline')" type="button">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+    <span>タイムライン</span>
+  </button>
+  <button class="nav-item" data-screen="done" onclick="switchScreen('done')" type="button">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.27 5.82 21 7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+    <span>できた</span>
+  </button>
+  <button class="nav-item" data-screen="settings" onclick="switchScreen('settings')" type="button">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+    <span>設定</span>
+  </button>
+</nav>
+<button class="nav-fab" onclick="openAddModal()">+</button>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <h3 id="modal-title">タスクを追加</h3>
+    <div class="modal-tabs" role="tablist">
+      <button class="modal-tab active" data-type="task" onclick="setModalType('task')" type="button">タスク</button>
+      <button class="modal-tab" data-type="event" onclick="setModalType('event')" type="button">予定</button>
+      <button class="modal-tab" data-type="later" onclick="setModalType('later')" type="button">あとで</button>
+    </div>
+    <div class="modal-field">
+      <label id="m-name-label">タスク名</label>
+      <input type="text" id="m-name" placeholder="入力してください">
+    </div>
+    <div id="m-task-fields">
+      <div class="modal-field">
+        <label>日付</label>
+        <input type="date" id="m-task-date">
+      </div>
+    </div>
+    <div id="m-event-fields" style="display:none">
+      <div class="toggle-row">
+        <label class="toggle-switch"><input type="checkbox" id="m-allday" onchange="toggleAllDay()"><span class="toggle-track"></span></label>
+        <span class="toggle-label">終日</span>
+      </div>
+      <div id="m-time-fields">
+        <div class="modal-row">
+          <div class="modal-field"><label>開始</label><input type="time" id="m-start"></div>
+          <div class="modal-field"><label>終了</label><input type="time" id="m-end"></div>
+        </div>
+      </div>
+      <div class="modal-field">
+        <label>日付</label>
+        <input type="date" id="m-event-date">
+      </div>
+    </div>
+    <div id="m-later-fields" style="display:none">
+      <div class="modal-row">
+        <div class="modal-field">
+          <label>見積もり時間（分）</label>
+          <input type="number" id="m-estimate" value="15" min="5" step="5">
+        </div>
+        <div class="modal-field">
+          <label>期限（任意）</label>
+          <input type="date" id="m-deadline">
+        </div>
+      </div>
+    </div>
+    <button class="modal-btn" id="modal-save" onclick="saveTask()">追加する</button>
+    <button class="delete-btn" id="modal-delete" style="display:none" onclick="deleteTask()">このタスクを削除</button>
+    <input type="hidden" id="m-edit-id">
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'mofu_tasks';
+const DAY_NAMES = ['日','月','火','水','木','金','土'];
+
+let state = {
+  tasks: [],
+  selectedDate: new Date(),
+  weekStart: null,
+  modalType: 'task',
+  editId: null
+};
+
+function load() {
+  try {
+    const d = localStorage.getItem(STORAGE_KEY);
+    if (d) state.tasks = JSON.parse(d);
+  } catch(e) {}
+  migrate();
+}
+function migrate() {
+  let changed = false;
+  state.tasks.forEach(t => {
+    if (t.type === 'schedule') {
+      if (t.allDay || (!t.start && !t.end)) {
+        t.type = 'task';
+      } else {
+        t.type = 'event';
+      }
+      changed = true;
+    }
+  });
+  if (changed) save();
+}
+function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.tasks)); }
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+function dateStr(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function todayStr() { return dateStr(new Date()); }
+function parseDate(s) { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); }
+function getMonday(d) {
+  const dt = new Date(d); const day = dt.getDay();
+  dt.setDate(dt.getDate() + (day === 0 ? -6 : 1 - day));
+  dt.setHours(0,0,0,0); return dt;
+}
+function fmtTime(t) { if (!t) return ''; const [h,m]=t.split(':'); return `${parseInt(h)}時${m}分`; }
+function calcDuration(start, end) {
+  if (!start || !end) return '';
+  const [sh,sm] = start.split(':').map(Number), [eh,em] = end.split(':').map(Number);
+  let mins = (eh*60+em)-(sh*60+sm);
+  if (mins <= 0) return '';
+  const h = Math.floor(mins/60), m = mins%60;
+  if (h>0 && m>0) return `(${h}時間${m}分)`;
+  return h>0 ? `(${h}時間)` : `(${m}分)`;
+}
+function esc(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+/* ===== NAV ===== */
+function switchScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-'+name).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.screen===name));
+  if (name==='timeline') renderTimeline();
+  if (name==='later') renderLater();
+  if (name==='done') renderDone();
+}
+
+/* ===== WEEK ===== */
+function initWeek() { state.weekStart = getMonday(state.selectedDate); }
+function moveWeek(dir) { state.weekStart.setDate(state.weekStart.getDate()+dir*7); state.selectedDate=new Date(state.weekStart); renderTimeline(); }
+function renderWeek() {
+  const daysEl=document.getElementById('tl-week-days'), numsEl=document.getElementById('tl-week-nums');
+  daysEl.innerHTML = ['月','火','水','木','金','土','日'].map(d=>`<div class="tl-week-day">${d}</div>`).join('');
+  const today=todayStr(), selected=dateStr(state.selectedDate);
+  let html='';
+  for (let i=0;i<7;i++) {
+    const d=new Date(state.weekStart); d.setDate(d.getDate()+i);
+    const ds=dateStr(d), cls=(ds===today?' today':'')+(ds===selected?' selected':'');
+    html+=`<div class="tl-week-num"><span class="${cls}" onclick="selectDay('${ds}')">${d.getDate()}</span></div>`;
+  }
+  numsEl.innerHTML=html;
+  const sd=state.selectedDate;
+  document.getElementById('tl-year').textContent=sd.getFullYear()+'年';
+  document.getElementById('tl-date-main').textContent=`${sd.getMonth()+1}月${sd.getDate()}日 ${DAY_NAMES[sd.getDay()]}`;
+}
+function selectDay(ds) { state.selectedDate=parseDate(ds); renderTimeline(); }
+
+/* ===== TIMELINE RENDER ===== */
+function renderTimeline() {
+  renderWeek();
+  const body = document.getElementById('tl-body');
+  const ds = dateStr(state.selectedDate);
+
+  const carryover = state.tasks
+    .filter(t => t.type==='task' && !t.done && t.date && t.date < ds)
+    .sort((a,b) => (a.date||'').localeCompare(b.date||''));
+
+  const tasks = state.tasks
+    .filter(t => t.type==='task' && t.date===ds)
+    .sort((a,b) => a.name.localeCompare(b.name));
+
+  const events = state.tasks
+    .filter(t => t.type==='event' && t.date===ds)
+    .sort((a,b) => {
+      if (a.allDay && !b.allDay) return -1;
+      if (!a.allDay && b.allDay) return 1;
+      return (a.start||'').localeCompare(b.start||'');
+    });
+
+  if (!carryover.length && !tasks.length && !events.length) {
+    body.innerHTML = '<div class="tl-empty">予定はありません</div>';
+    return;
+  }
+
+  let html = '';
+
+  if (carryover.length) {
+    html += '<div class="tl-section-label carry-label">繰り越し</div>';
+    carryover.forEach((ev, i) => {
+      const origDate = ev.date ? `${parseInt(ev.date.slice(5,7))}/${parseInt(ev.date.slice(8))}から` : '';
+      const isLast = i===carryover.length-1 && !tasks.length && !events.length;
+      html += buildRow(ev, isLast, { carry: true, showCheck: true, timeCol: '', timeInfo: '', subLabel: origDate });
+    });
+  }
+
+  if (tasks.length) {
+    html += '<div class="tl-section-label task-label">タスク</div>';
+    tasks.forEach((ev, i) => {
+      const isLast = i===tasks.length-1 && !events.length;
+      html += buildRow(ev, isLast, { carry: false, showCheck: true, timeCol: '', timeInfo: '', subLabel: null });
+    });
+  }
+
+  if (events.length) {
+    html += '<div class="tl-section-label event-label">予定</div>';
+    events.forEach((ev, i) => {
+      const isLast = i===events.length-1;
+      let tc = '', timeInfo = '';
+      if (ev.allDay) {
+        timeInfo = '終日';
+      } else {
+        tc = ev.start || '';
+        timeInfo = ev.start && ev.end ? `${fmtTime(ev.start)}〜${fmtTime(ev.end)} ${calcDuration(ev.start,ev.end)}` : '';
+      }
+      html += buildRow(ev, isLast, { carry: false, showCheck: false, timeCol: tc, timeInfo, subLabel: null });
+    });
+  }
+
+  body.innerHTML = html;
+}
+
+function buildRow(ev, isLast, opts) {
+  const cls = opts.carry ? ' carry' : '';
+  const carryTag = opts.carry && opts.subLabel ? `<span class="carry-tag">${opts.subLabel}</span>` : '';
+  const timeDisplay = opts.timeInfo ? opts.timeInfo + carryTag : carryTag;
+  const checkHtml = opts.showCheck
+    ? `<div class="tl-event-check ${ev.done?'done':''}" onclick="event.stopPropagation();toggleDone('${ev.id}')"></div>`
+    : '';
+  return `
+  <div class="tl-row${cls}">
+    <div class="tl-time-col">${opts.timeCol}</div>
+    <div class="tl-line-col">
+      <div class="tl-dot"></div>
+      ${isLast ? '' : '<div class="tl-line"></div>'}
+    </div>
+    <div class="tl-event-col">
+      <div class="tl-event-card" onclick="editTask('${ev.id}')">
+        <div class="tl-event-info">
+          ${timeDisplay ? `<div class="tl-event-time">${timeDisplay}</div>` : ''}
+          <div class="tl-event-name">${esc(ev.name)}</div>
+        </div>
+        ${checkHtml}
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ===== LATER RENDER ===== */
+function renderLater() {
+  const body=document.getElementById('later-body');
+  const pending=state.tasks.filter(t=>t.type==='later'&&!t.done);
+  const done=state.tasks.filter(t=>t.type==='later'&&t.done);
+  let html='';
+  pending.forEach(t => {
+    const dl = t.deadline ? `★${t.deadline.slice(5).replace('-','/')}期限 | ` : '';
+    html += `
+    <div class="later-card" onclick="editTask('${t.id}')">
+      <div class="later-card-info">
+        <div class="later-card-est">${t.estimate||15} 分</div>
+        <div class="later-card-name">${dl}${esc(t.name)}</div>
+      </div>
+      <div class="later-card-add" onclick="event.stopPropagation();toggleDone('${t.id}')">+</div>
+    </div>`;
+  });
+  if (done.length) {
+    html += '<div class="later-section-title">完了したタスク</div>';
+    done.forEach(t => {
+      html += `
+      <div class="later-card completed" onclick="editTask('${t.id}')">
+        <div class="later-card-info">
+          <div class="later-card-est">${t.estimate||15} 分</div>
+          <div class="later-card-name">${esc(t.name)}</div>
+        </div>
+        <div class="later-card-add" onclick="event.stopPropagation();toggleDone('${t.id}')" style="color:#aaa">↩</div>
+      </div>`;
+    });
+  }
+  if (!pending.length && !done.length) html='<div class="tl-empty">「あとで」タスクはありません</div>';
+  body.innerHTML=html;
+}
+
+/* ===== TOGGLE ===== */
+function toggleDone(id) {
+  const t=state.tasks.find(x=>x.id===id);
+  if (t) {
+    t.done=!t.done;
+    t.doneAt = t.done ? dateStr(new Date()) : null;
+    save();
+  }
+  renderTimeline(); renderLater();
+}
+
+/* ===== DONE SCREEN ===== */
+function renderDone() {
+  const today = todayStr();
+  const allDone = state.tasks.filter(t => t.done && t.doneAt);
+  const todayDone = allDone.filter(t => t.doneAt && t.doneAt.startsWith(today));
+
+  document.getElementById('done-today-count').textContent = todayDone.length;
+
+  const messages = [
+    { min:0, text:'タスクを完了してみよう！' },
+    { min:1, text:'やるじゃん！最初の一歩！' },
+    { min:2, text:'いい感じ！' },
+    { min:3, text:'すごい！ノッてきたね！' },
+    { min:5, text:'絶好調！かっこいい！' },
+    { min:8, text:'天才では？最高の一日！' }
+  ];
+  const msg = [...messages].reverse().find(m => todayDone.length >= m.min);
+  document.getElementById('done-msg').textContent = msg ? msg.text : '';
+
+  const streakEl = document.getElementById('done-streak');
+  const streak = calcStreak();
+  if (streak >= 2) {
+    streakEl.style.display = '';
+    streakEl.textContent = `${streak}日連続で達成中！`;
+  } else {
+    streakEl.style.display = 'none';
+  }
+
+  const body = document.getElementById('done-body');
+  if (!allDone.length) {
+    body.innerHTML = '<div class="done-empty">まだ完了したタスクはありません</div>';
+    return;
+  }
+
+  const grouped = {};
+  allDone.sort((a,b) => b.doneAt.localeCompare(a.doneAt)).forEach(t => {
+    const d = t.doneAt.length > 10 ? t.doneAt.slice(0,10) : t.doneAt;
+    if (!grouped[d]) grouped[d] = [];
+    grouped[d].push(t);
+  });
+
+  let html = '';
+  for (const [date, items] of Object.entries(grouped)) {
+    const pd = parseDate(date);
+    const isToday = date === today;
+    const label = isToday ? '今日' : `${pd.getMonth()+1}/${pd.getDate()} (${DAY_NAMES[pd.getDay()]})`;
+    html += `<div class="done-date-group"><div class="done-date-label">${label} — ${items.length}件</div>`;
+    items.forEach(t => {
+      const typeLabel = t.type==='task' ? 'タスク' : t.type==='later' ? 'あとで' : '';
+      html += `
+      <div class="done-item">
+        <div class="done-item-check"></div>
+        <div class="done-item-name">${esc(t.name)}</div>
+        ${typeLabel ? `<span class="done-item-type">${typeLabel}</span>` : ''}
+      </div>`;
+    });
+    html += '</div>';
+  }
+  body.innerHTML = html;
+}
+
+function calcStreak() {
+  const doneDates = new Set();
+  state.tasks.forEach(t => {
+    if (t.done && t.doneAt) doneDates.add(t.doneAt.length > 10 ? t.doneAt.slice(0,10) : t.doneAt);
+  });
+  let streak = 0;
+  const d = new Date();
+  while (true) {
+    const ds = dateStr(d);
+    if (doneDates.has(ds)) {
+      streak++;
+      d.setDate(d.getDate()-1);
+    } else {
+      break;
+    }
+  }
+  return streak;
+}
+
+/* ===== MODAL ===== */
+function toggleAllDay() {
+  document.getElementById('m-time-fields').style.display = document.getElementById('m-allday').checked ? 'none' : '';
+}
+
+function openAddModal() {
+  state.editId=null;
+  document.getElementById('modal-title').textContent='追加';
+  document.getElementById('modal-save').textContent='追加する';
+  document.getElementById('modal-delete').style.display='none';
+  document.getElementById('m-name').value='';
+  document.getElementById('m-start').value='';
+  document.getElementById('m-end').value='';
+  document.getElementById('m-task-date').value=dateStr(state.selectedDate);
+  document.getElementById('m-event-date').value=dateStr(state.selectedDate);
+  document.getElementById('m-allday').checked=false;
+  document.getElementById('m-time-fields').style.display='';
+  document.getElementById('m-estimate').value='15';
+  document.getElementById('m-deadline').value='';
+  document.getElementById('m-edit-id').value='';
+  setModalType('task');
+  document.getElementById('modal-overlay').classList.add('show');
+}
+
+function editTask(id) {
+  const t=state.tasks.find(x=>x.id===id);
+  if (!t) return;
+  state.editId=id;
+  document.getElementById('modal-title').textContent='編集';
+  document.getElementById('modal-save').textContent='保存する';
+  document.getElementById('modal-delete').style.display='block';
+  document.getElementById('m-name').value=t.name;
+  document.getElementById('m-edit-id').value=id;
+  setModalType(t.type);
+  if (t.type==='task') {
+    document.getElementById('m-task-date').value=t.date||'';
+  } else if (t.type==='event') {
+    document.getElementById('m-allday').checked=!!t.allDay;
+    document.getElementById('m-time-fields').style.display=t.allDay?'none':'';
+    document.getElementById('m-start').value=t.start||'';
+    document.getElementById('m-end').value=t.end||'';
+    document.getElementById('m-event-date').value=t.date||'';
+  } else {
+    document.getElementById('m-estimate').value=t.estimate||15;
+    document.getElementById('m-deadline').value=t.deadline||'';
+  }
+  document.getElementById('modal-overlay').classList.add('show');
+}
+
+function closeModal(e) {
+  if (e && e.target!==document.getElementById('modal-overlay')) return;
+  document.getElementById('modal-overlay').classList.remove('show');
+}
+
+function setModalType(type) {
+  state.modalType=type;
+  document.querySelectorAll('.modal-tab').forEach(t=>t.classList.toggle('active',t.dataset.type===type));
+  document.getElementById('m-task-fields').style.display=type==='task'?'':'none';
+  document.getElementById('m-event-fields').style.display=type==='event'?'':'none';
+  document.getElementById('m-later-fields').style.display=type==='later'?'':'none';
+  const label = document.getElementById('m-name-label');
+  label.textContent = type==='event' ? '予定名' : 'タスク名';
+}
+
+function saveTask() {
+  const name=document.getElementById('m-name').value.trim();
+  if (!name) { document.getElementById('m-name').focus(); return; }
+  const type=state.modalType;
+
+  if (state.editId) {
+    const t=state.tasks.find(x=>x.id===state.editId);
+    if (t) {
+      t.name=name; t.type=type;
+      if (type==='task') {
+        t.date=document.getElementById('m-task-date').value;
+        delete t.start; delete t.end; delete t.allDay;
+      } else if (type==='event') {
+        t.allDay=document.getElementById('m-allday').checked;
+        t.start=t.allDay?'':document.getElementById('m-start').value;
+        t.end=t.allDay?'':document.getElementById('m-end').value;
+        t.date=document.getElementById('m-event-date').value;
+        t.done=false;
+      } else {
+        t.estimate=parseInt(document.getElementById('m-estimate').value)||15;
+        t.deadline=document.getElementById('m-deadline').value;
+        delete t.start; delete t.end; delete t.allDay; delete t.date;
+      }
+    }
+  } else {
+    const item={id:uid(),name,type,done:false};
+    if (type==='task') {
+      item.date=document.getElementById('m-task-date').value;
+    } else if (type==='event') {
+      item.allDay=document.getElementById('m-allday').checked;
+      item.start=item.allDay?'':document.getElementById('m-start').value;
+      item.end=item.allDay?'':document.getElementById('m-end').value;
+      item.date=document.getElementById('m-event-date').value;
+    } else {
+      item.estimate=parseInt(document.getElementById('m-estimate').value)||15;
+      item.deadline=document.getElementById('m-deadline').value;
+    }
+    state.tasks.push(item);
+  }
+  save();
+  document.getElementById('modal-overlay').classList.remove('show');
+  renderTimeline(); renderLater();
+}
+
+function deleteTask() {
+  if (!state.editId) return;
+  if (!confirm('削除しますか？')) return;
+  state.tasks=state.tasks.filter(t=>t.id!==state.editId);
+  save();
+  document.getElementById('modal-overlay').classList.remove('show');
+  renderTimeline(); renderLater();
+}
+
+/* ===== SETTINGS ===== */
+function exportData() {
+  const blob=new Blob([JSON.stringify(state.tasks,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='mofu-tasks-'+todayStr()+'.json'; a.click();
+}
+function importData() {
+  const input=document.createElement('input'); input.type='file'; input.accept='.json';
+  input.onchange=e=>{
+    const file=e.target.files[0]; if(!file) return;
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      try { const data=JSON.parse(ev.target.result);
+        if (Array.isArray(data)){state.tasks=data;save();alert('インポートしました');renderTimeline();renderLater();}
+      } catch(err){alert('読み込みに失敗しました');}
+    }; reader.readAsText(file);
+  }; input.click();
+}
+function clearAllData() {
+  if (!confirm('全てのデータを削除しますか？')) return;
+  state.tasks=[]; save(); renderTimeline(); renderLater(); alert('削除しました');
+}
+
+/* ===== INIT ===== */
+load(); initWeek(); renderTimeline();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>
