@@ -297,18 +297,7 @@ body{display:flex;flex-direction:column}
         <input type="date" id="m-event-date">
       </div>
     </div>
-    <div id="m-later-fields" style="display:none">
-      <div class="modal-row">
-        <div class="modal-field">
-          <label>見積もり時間（分）</label>
-          <input type="number" id="m-estimate" value="15" min="5" step="5">
-        </div>
-        <div class="modal-field">
-          <label>期限（任意）</label>
-          <input type="date" id="m-deadline">
-        </div>
-      </div>
-    </div>
+    <div id="m-later-fields" style="display:none"></div>
     <button class="modal-btn" id="modal-save" onclick="saveTask()">追加する</button>
     <button class="delete-btn" id="modal-delete" style="display:none" onclick="deleteTask()">このタスクを削除</button>
     <input type="hidden" id="m-edit-id">
@@ -509,26 +498,21 @@ function renderLater() {
   const done=state.tasks.filter(t=>t.type==='later'&&t.done);
   let html='';
   pending.forEach(t => {
-    const dl = t.deadline ? `★${t.deadline.slice(5).replace('-','/')}期限 | ` : '';
     html += `
     <div class="later-card" onclick="editTask('${t.id}')">
       <div class="later-card-info">
-        <div class="later-card-est">${t.estimate||15} 分</div>
-        <div class="later-card-name">${dl}${esc(t.name)}</div>
+        <div class="later-card-name">${esc(t.name)}</div>
       </div>
-      <div class="later-card-add" onclick="event.stopPropagation();toggleDone('${t.id}')">+</div>
     </div>`;
   });
   if (done.length) {
-    html += '<div class="later-section-title">完了したタスク</div>';
+    html += '<div class="later-section-title">完了したメモ</div>';
     done.forEach(t => {
       html += `
       <div class="later-card completed" onclick="editTask('${t.id}')">
         <div class="later-card-info">
-          <div class="later-card-est">${t.estimate||15} 分</div>
           <div class="later-card-name">${esc(t.name)}</div>
         </div>
-        <div class="later-card-add" onclick="event.stopPropagation();toggleDone('${t.id}')" style="color:#aaa">↩</div>
       </div>`;
     });
   }
@@ -664,10 +648,10 @@ function openAddModal() {
   document.getElementById('m-event-date').value=dateStr(state.selectedDate);
   document.getElementById('m-allday').checked=false;
   document.getElementById('m-time-fields').style.display='';
-  document.getElementById('m-estimate').value='15';
-  document.getElementById('m-deadline').value='';
   document.getElementById('m-edit-id').value='';
-  setModalType('task');
+  const currentScreen = document.querySelector('.screen.active');
+  const defaultType = currentScreen && currentScreen.id === 'screen-later' ? 'later' : 'task';
+  setModalType(defaultType);
   document.getElementById('modal-overlay').classList.add('show');
 }
 
@@ -689,9 +673,6 @@ function editTask(id) {
     document.getElementById('m-start').value=t.start||'';
     document.getElementById('m-end').value=t.end||'';
     document.getElementById('m-event-date').value=t.date||'';
-  } else {
-    document.getElementById('m-estimate').value=t.estimate||15;
-    document.getElementById('m-deadline').value=t.deadline||'';
   }
   document.getElementById('modal-overlay').classList.add('show');
 }
@@ -708,7 +689,7 @@ function setModalType(type) {
   document.getElementById('m-event-fields').style.display=type==='event'?'':'none';
   document.getElementById('m-later-fields').style.display=type==='later'?'':'none';
   const label = document.getElementById('m-name-label');
-  label.textContent = type==='event' ? '予定名' : 'タスク名';
+  label.textContent = type==='event' ? '予定名' : type==='later' ? 'メモ' : 'タスク名';
 }
 
 function saveTask() {
@@ -730,9 +711,8 @@ function saveTask() {
         t.date=document.getElementById('m-event-date').value;
         t.done=false;
       } else {
-        t.estimate=parseInt(document.getElementById('m-estimate').value)||15;
-        t.deadline=document.getElementById('m-deadline').value;
         delete t.start; delete t.end; delete t.allDay; delete t.date;
+        delete t.estimate; delete t.deadline;
       }
     }
   } else {
@@ -745,8 +725,6 @@ function saveTask() {
       item.end=item.allDay?'':document.getElementById('m-end').value;
       item.date=document.getElementById('m-event-date').value;
     } else {
-      item.estimate=parseInt(document.getElementById('m-estimate').value)||15;
-      item.deadline=document.getElementById('m-deadline').value;
     }
     state.tasks.push(item);
   }
